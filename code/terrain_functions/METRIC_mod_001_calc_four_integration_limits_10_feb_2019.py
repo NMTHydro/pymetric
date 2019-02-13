@@ -1,11 +1,21 @@
+# ===============================================================================
+# Copyright 2019 Jan Hendrickx and Gabriel Parrish
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# This script was written by Jan Hendrickx and Gabriel Parrish at New Mexico Institute of Mining and Technology.
-# It is open source but please give credit if you use part or all of this code.
+# http://www.apache.org/licenses/LICENSE-2.0
 #
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ===============================================================================
 import os
 import numpy as np
+# ============= standard library imports ========================
 #
 # Input variables for Eq. [13-1] in Allen et al. (2010) and the similar Eq. [3] in Allen et al. (2006)
 # Allen (2010) stands for Allen et al. (2010) METRIC Manual
