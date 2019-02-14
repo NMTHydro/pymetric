@@ -39,77 +39,100 @@ def calc_two_daytime_integration_limits(omega_rise_pixel_24, omega_set_pixel_24,
     # The value of omega_rise_pixel_24 must be smaller or equal to omega_set_pixel_24 (i.e. sunrise occurs before sunset).
     #
 
-    if omega_set_pixel_24 < omega_rise_pixel_24:
-        omega_rise_pixel_24 = omega_set_pixel_24
-        print ('\n','STEP D - Section (ii)','\n','IF-statement in D_ii is TRUE:','\n','Slope is always shaded because '
-                                                         'omega_rise_pixel_24 equals omega_set_pixel_24')
-        print ('\n', 'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24),'    ',
-           'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24))
+    if raster_mode:
+        omega_rise_pixel_24[omega_set_pixel_24 < omega_rise_pixel_24] = omega_set_pixel_24[omega_set_pixel_24 < omega_rise_pixel_24]
+
     else:
-        print('\n','STEP D - Section (ii)','\n','Check that omega_rise_pixel_24 is smaller than omega_set_pixel_24','\n',
-              'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24), '  <  ',
-          'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24))
-    #
+
+        if omega_set_pixel_24 < omega_rise_pixel_24:
+            omega_rise_pixel_24 = omega_set_pixel_24
+            print ('\n','STEP D - Section (ii)','\n','IF-statement in D_ii is TRUE:','\n','Slope is always shaded because '
+                                                             'omega_rise_pixel_24 equals omega_set_pixel_24')
+            print ('\n', 'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24),'    ',
+               'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24))
+        else:
+            print('\n','STEP D - Section (ii)','\n','Check that omega_rise_pixel_24 is smaller than omega_set_pixel_24','\n',
+                  'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24), '  <  ',
+              'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24))
+
     # This means that there is no direct solar beam during the day; the slope is always shaded.
-    #
+
     # STEP D - Section (iii)
     # The sine values in Eqs. [13a and 13b] cannot be smaller than -1 or larger than +1. This issue has been taken care of
     #   under STEP B and STEP C.
-    #
+
     # STEP D - Section (iv)
     #    Check if possibility exists for two periods of direct beam radiation during the day.
     #    The two daytime integration limits are defined as follows:
     #       omega_set_during_day_pixel_24 = the time angle when the center of the solar disk disappears the first time
     #       omega_rise_during_day_pixel_24 = the time angle when the center of the solar disk reappears over the surface
-    #
-    print('\n','STEP D - Section (iv)','\n','Check IF-statement sin_slope > (sin_lat * cos_decl + cos_lat * sin_decl)')
-    #    temp = sin_lat * cos_decl + cos_lat * sin_decl
-    if sin_slope <= sin_lat * cos_decl + cos_lat * sin_decl:
-        print ('\n','sin_slope = {:.5f}'.format(sin_slope),'  <   ',
-               'sin_lat * cos_decl + cos_lat * sin_decl = {:.5f}'.format(sin_lat * cos_decl + cos_lat * sin_decl))
-        omega_set_during_day_pixel_24 = 0.000000
-        omega_rise_during_day_pixel_24 = 0.000000
-        print(' There is only one period of direct beam radiation during the day', '\n',
-              'No daytime integration limits exist and therefore:','',
-              'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24),'    ',
-              'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
+
+    if raster_mode:
+
+        # instantiate the new array
+        omega_set_during_day_pixel_24 = np.empty(omega_rise_pixel_24.shape)
+        omega_rise_during_day_pixel_24 = np.empty(omega_rise_pixel_24.shape)
+
+        # if sin_slope is less than, there is only one period of direct beam radiation during the day.
+        omega_set_during_day_pixel_24[sin_slope <= (sin_lat * cos_decl + cos_lat * sin_decl)] = 0.000000
+        omega_rise_during_day_pixel_24[sin_slope <= (sin_lat * cos_decl + cos_lat * sin_decl)] = 0.000000
+
     else:
-        print ('\n','sin_slope = {:.5f}'.format(sin_slope),'  >   ',
-               'sin_lat * cos_decl + cos_lat * sin_decl = {:.5f}'.format(sin_lat * cos_decl + cos_lat * sin_decl))
-        print (' Possibility exists for two periods of direct beam radiation during the day', '\n','\n',
-               'STEP D - Section (iv-b, c)')
-    #
+        print('\n','STEP D - Section (iv)','\n','Check IF-statement sin_slope > (sin_lat * cos_decl + cos_lat * sin_decl)')
+        #    temp = sin_lat * cos_decl + cos_lat * sin_decl
+        if sin_slope <= sin_lat * cos_decl + cos_lat * sin_decl:
+            print ('\n','sin_slope = {:.5f}'.format(sin_slope),'  <   ',
+                   'sin_lat * cos_decl + cos_lat * sin_decl = {:.5f}'.format(sin_lat * cos_decl + cos_lat * sin_decl))
+            omega_set_during_day_pixel_24 = 0.000000
+            omega_rise_during_day_pixel_24 = 0.000000
+            print(' There is only one period of direct beam radiation during the day', '\n',
+                  'No daytime integration limits exist and therefore:','',
+                  'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24),'    ',
+                  'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
+        else:
+            print ('\n','sin_slope = {:.5f}'.format(sin_slope),'  >   ',
+                   'sin_lat * cos_decl + cos_lat * sin_decl = {:.5f}'.format(sin_lat * cos_decl + cos_lat * sin_decl))
+            print (' Possibility exists for two periods of direct beam radiation during the day', '\n','\n',
+                   'STEP D - Section (iv-b, c)')
+
     #    STEP D - Section (iv-a)
     #    omega_rise_pixel_24 and omega_set_pixel_24 have already been calculated in STEP B and STEP C
     #
     #    STEP D - Section (iv-b, c)
     #    The candidates for intermediate integration limits omega_set_during_day_pixel_24 and omega_rise_during_day_pixel_24
     #        are
+
     sin_A = (a * c + b * np.sqrt(quadratic_function)) / (b**2 + c**2)
     sin_B = (a * c - b * np.sqrt(quadratic_function)) / (b**2 + c**2)
     #
     #     STEP D - Section(iv - c)
     #
-    if sin_A < -1.0:
-            sin_A = -1.0
-    if sin_A > 1.0:
-            sin_A = 1.0
-    if sin_B < -1.0:
-            sin_B = -1.0
-    if sin_B > 1.0:
-            sin_B = 1.0
-    print(' sin_A = {:.5f}'.format(sin_A),'      ','sin_B = {:.5f}'.format(sin_B))
-    A = np.arcsin(sin_A)
-    B = np.arcsin(sin_B)
-    print (' A = {:.5f}'.format(A),'          ','B = {:.5f}'.format(B),'\n','\n',
-              'STEP D - Section(iv - d)')
-    #
-    #     STEP D - Section(iv - d)
-    #
-    omega_set_during_day_pixel_24 = min(A,B)
-    omega_rise_during_day_pixel_24 = max(A,B)
-    print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24), '      ',
-              'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
+    # TODO -------------------------------------------------------------------------
+    if raster_mode:
+        pass
+    else:
+
+        if sin_A < -1.0:
+                sin_A = -1.0
+        if sin_A > 1.0:
+                sin_A = 1.0
+        if sin_B < -1.0:
+                sin_B = -1.0
+        if sin_B > 1.0:
+                sin_B = 1.0
+        print(' sin_A = {:.5f}'.format(sin_A),'      ','sin_B = {:.5f}'.format(sin_B))
+        A = np.arcsin(sin_A)
+        B = np.arcsin(sin_B)
+        print (' A = {:.5f}'.format(A),'          ','B = {:.5f}'.format(B),'\n','\n',
+                  'STEP D - Section(iv - d)')
+        #
+        #     STEP D - Section(iv - d)
+        #
+        omega_set_during_day_pixel_24 = min(A,B)
+        omega_rise_during_day_pixel_24 = max(A,B)
+        print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24), '      ',
+                  'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
+    # TODO -------------------------------------------------------------------------
     #
     #     STEP D - Section(iv - e)
     #
@@ -745,17 +768,25 @@ if __name__ == "__main__":
     SlopeDeg = 80
     AspectDeg = 180
 
-    # =============== RASTER MODE INPUTS =======================
+    # # =============== RASTER MODE INPUTS (MSEC COMP) =======================
+    #
+    # # We may not need the DEM.
+    # dem_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped.tif'
+    # # RASTER EQUIVALENT TO SlopeDeg
+    # slope_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_slope.tif'
+    # # RASTER EQUIVALENT TO AspectDeg
+    # aspect_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_aspect.tif'
+    # # RASTER EQUIVALENT TO LatDeg
+    # latitude_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_lat.tif'
 
-    # We may not need the DEM.
-    dem_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped.tif'
+    # =============== RASTER MODE INPUTS (BUREAU COMP) =======================
 
     # RASTER EQUIVALENT TO SlopeDeg
-    slope_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_slope.tif'
+    slope_path = '\\agustin\\homes\gparrish\Desktop\\radiation_on_slopes\\los_lunas_aoi_dem_clipped_slope.tif'
     # RASTER EQUIVALENT TO AspectDeg
-    aspect_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_aspect.tif'
+    aspect_path = dem_path = '\\agustin\\homes\gparrish\Desktop\\radiation_on_slopes\\los_lunas_aoi_dem_clipped_aspect'
     # RASTER EQUIVALENT TO LatDeg
-    latitude_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_lat.tif'
+    latitude_path = '\\agustin\\homes\gparrish\Desktop\\radiation_on_slopes\\los_lunas_aoi_dem_clipped_lat.tif'
 
     # todo - make it optional to run a raster mode or a 1-D mode.
 
