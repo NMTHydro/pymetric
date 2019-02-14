@@ -21,6 +21,28 @@ from code.terrain_functions.raster_util import convert_raster_to_array
 
 # TODO - MAKE SURE THAT YOU USE PYMETRIC-WRITTEN FUNCTIONS TO READ THE RASTERS AS ARRAYS DONT REPEAT FUNCTIONS ALREADY WRITTEN BY DRI
 
+
+def integral_cos_theta(lower_limit, upper_limit, sin_decl, cos_decl,sin_lat, cos_lat, sin_slope, cos_slope,
+                       sin_aspect, cos_aspect, raster_mode=False):
+    """"""
+    #   Equation [5] in Allen (2006)
+    #   lower_limit = lower_limit of integral as hourangle in radisns
+    #   upper_limit = upper limit of integral as hourangle in radians
+
+    int_cos_theta = sin_decl * sin_lat * cos_slope * (upper_limit - lower_limit) \
+        - sin_decl * cos_lat * sin_slope * cos_aspect * (upper_limit - lower_limit) \
+        + cos_decl * cos_lat * cos_slope * (np.sin(upper_limit) - np.sin(lower_limit)) \
+        + cos_decl * sin_lat * sin_slope * cos_aspect * (np.sin(upper_limit) - np.sin(lower_limit)) \
+        - cos_decl * sin_slope * sin_aspect * (np.cos(upper_limit) - np.cos(lower_limit))
+
+    if not raster_mode:
+        print('\n','lower_limit = {:.5f}'.format(lower_limit))
+        print('\n','upper_limit = {:.5f}'.format(upper_limit))
+        print('\n','upper limit - lower_limit = {:.5f}'.format(upper_limit - lower_limit))
+
+    return int_cos_theta
+
+
 def calc_two_daytime_integration_limits(omega_rise_pixel_24, omega_set_pixel_24, lower_int_limit_rise,
                                         upper_int_limit_set, sin_slope, sin_lat, sin_decl, sin_aspect, cos_slope,
                                         cos_lat, cos_decl, cos_aspect, a, b, c, quadratic_function, raster_mode=False):
@@ -106,10 +128,21 @@ def calc_two_daytime_integration_limits(omega_rise_pixel_24, omega_set_pixel_24,
     sin_B = (a * c - b * np.sqrt(quadratic_function)) / (b**2 + c**2)
     #
     #     STEP D - Section(iv - c)
-    #
-    # TODO -------------------------------------------------------------------------
+
     if raster_mode:
-        pass
+
+        sin_A[sin_A < -1.0] = -1.0
+        sin_A[sin_A > 1.0] = 1.0
+        sin_B[sin_B < -1.0] = -1.0
+        sin_B[sin_B > 1.0] = 1.0
+
+        A = np.arcsin(sin_A)
+        B = np.arcsin(sin_B)
+
+        #     STEP D - Section(iv - d)
+        omega_set_during_day_pixel_24 = np.minimum(A, B)
+        omega_rise_during_day_pixel_24 = np.maximum(A, B)
+
     else:
 
         if sin_A < -1.0:
@@ -132,66 +165,65 @@ def calc_two_daytime_integration_limits(omega_rise_pixel_24, omega_set_pixel_24,
         omega_rise_during_day_pixel_24 = max(A,B)
         print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24), '      ',
                   'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
-    # TODO ------------------------------------------------------------------------------
-    #
+
+
     #     STEP D - Section(iv - e)
-    #
+
     cos_theta_omega_set_during_day_pixel_24 = - a + b * np.cos(omega_set_during_day_pixel_24) + c \
-                                                  * np.sin(omega_set_during_day_pixel_24)
+                                              * np.sin(omega_set_during_day_pixel_24)
     cos_theta_omega_rise_during_day_pixel_24 = - a + b * np.cos(omega_rise_during_day_pixel_24) + c \
-                                                  * np.sin(omega_rise_during_day_pixel_24)
-    print('\n', 'cos_theta_omega_set_during_day_pixel_24 = {:.5f}'.format(cos_theta_omega_set_during_day_pixel_24),
-              '      ',
-              'cos_theta_omega_rise_during_day_pixel_24 = {:.5f}'.format(cos_theta_omega_rise_during_day_pixel_24))
+                                               * np.sin(omega_rise_during_day_pixel_24)
 
-    if cos_theta_omega_set_during_day_pixel_24 < -0.001 or cos_theta_omega_set_during_day_pixel_24 > 0.001:
-            omega_set_during_day_pixel_24 = - np.pi - omega_set_during_day_pixel_24
-    if cos_theta_omega_rise_during_day_pixel_24 < -0.001 or cos_theta_omega_rise_during_day_pixel_24 > 0.001:
-            omega_rise_during_day_pixel_24 = np.pi - omega_rise_during_day_pixel_24
-    print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24),
-              '      ',
-              'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
-    print('\n', 'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24),
-              '      ',
-              'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24))
-    #
-    #     STEP D - Section(iv - f and g)
-    #
-    #        if omega_set_during_day_pixel_24 < omega_rise_pixel_24 or omega_rise_during_day_pixel_24 > omega_set_pixel_24:
-    #            print('\n',' There is only one period of direct beam radiation during the day', '\n',' because','\n',
-    #                  ' omega_set_during_day_pixel_24 < omega_rise_pixel_24 or '
-    #                  'omega_rise_during_day_pixel_24 < omega_set_pixel_24')
-    #            print('  omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24),
-    #            'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24),
-    #                  'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24),
-    #                  ' omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24))
-    #            omega_set_during_day_pixel_24 = 0.000000
-    #            omega_rise_during_day_pixel_24 = 0.000000
-    #        else:
-    #            X = sin_decl * sin_lat * cos_slope * (omega_rise_during_day_pixel_24 - omega_set_during_day_pixel_24)
-    #            - sin_decl * cos_lat * sin_slope * cos_aspect * (omega_rise_during_day_pixel_24
-    #                                                             - omega_set_during_day_pixel_24)
-    #            + cos_decl * cos_lat * cos_slope * (np.sin(omega_rise_during_day_pixel_24)
-    #                                                - np.sin(omega_set_during_day_pixel_24))
-    #            + cos_decl * sin_lat * sin_slope * cos_aspect * (np.sin(omega_rise_during_day_pixel_24)
-    #                                                             - np.sin(omega_set_during_day_pixel_24))
-    #            - cos_decl * sin_slope * sin_aspect * (np.cos(omega_rise_during_day_pixel_24)
-    #                                                     - np.cos(omega_set_during_day_pixel_24))
-    #            if X < 0:
-    #                print('\n','x = {:.5f}'.format(X),'there are two periods of direct beam radiation during the day')
-    #            else:
-    #                print('\n','x = {:.5f}'.format(X),'there is only one period of direct beam radiation during the day')
-    #
-    if omega_set_during_day_pixel_24 < omega_rise_pixel_24:
-            omega_set_during_day_pixel_24 = omega_rise_pixel_24
-    if omega_rise_during_day_pixel_24 > omega_set_pixel_24:
-            omega_rise_during_day_pixel_24 = omega_set_pixel_24
+    if raster_mode:
+        omega_set_during_day_pixel_24[(cos_theta_omega_set_during_day_pixel_24 < -0.001) |
+                                      (cos_theta_omega_set_during_day_pixel_24 > 0.001)] = \
+            - np.pi - omega_set_during_day_pixel_24[(cos_theta_omega_set_during_day_pixel_24 < -0.001) |
+                                                    (cos_theta_omega_set_during_day_pixel_24 > 0.001)]
+
+        omega_rise_during_day_pixel_24[(cos_theta_omega_rise_during_day_pixel_24 < -0.001) |
+                                       (cos_theta_omega_rise_during_day_pixel_24 > 0.001)] = \
+            np.pi - omega_rise_during_day_pixel_24[(cos_theta_omega_rise_during_day_pixel_24 < -0.001) |
+                                                   (cos_theta_omega_rise_during_day_pixel_24 > 0.001)]
+
+        #     STEP D - Section(iv - f and g) RASTER MODE
+
+        omega_set_during_day_pixel_24[omega_set_during_day_pixel_24 < omega_rise_pixel_24] = \
+            omega_rise_pixel_24[omega_set_during_day_pixel_24 < omega_rise_pixel_24]
+
+        omega_rise_during_day_pixel_24[omega_rise_during_day_pixel_24 > omega_set_pixel_24] = \
+            omega_set_pixel_24[omega_rise_during_day_pixel_24 > omega_set_pixel_24]
+
+    else:
+
+        print('\n', 'cos_theta_omega_set_during_day_pixel_24 = {:.5f}'.format(cos_theta_omega_set_during_day_pixel_24),
+                  '      ',
+                  'cos_theta_omega_rise_during_day_pixel_24 = {:.5f}'.format(cos_theta_omega_rise_during_day_pixel_24))
+
+        if cos_theta_omega_set_during_day_pixel_24 < -0.001 or cos_theta_omega_set_during_day_pixel_24 > 0.001:
+                omega_set_during_day_pixel_24 = - np.pi - omega_set_during_day_pixel_24
+        if cos_theta_omega_rise_during_day_pixel_24 < -0.001 or cos_theta_omega_rise_during_day_pixel_24 > 0.001:
+                omega_rise_during_day_pixel_24 = np.pi - omega_rise_during_day_pixel_24
+        print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24),
+                  '      ',
+                  'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
+        print('\n', 'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24),
+                  '      ',
+                  'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24))
+
+        #     STEP D - Section(iv - f and g)
+
+        if omega_set_during_day_pixel_24 < omega_rise_pixel_24:
+                omega_set_during_day_pixel_24 = omega_rise_pixel_24
+        if omega_rise_during_day_pixel_24 > omega_set_pixel_24:
+                omega_rise_during_day_pixel_24 = omega_set_pixel_24
 
 
-    print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24), '      ',
-              'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
-    print('\n', 'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24), '      ',
-              'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24))
+
+        print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24), '      ',
+                  'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
+        print('\n', 'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24), '      ',
+                  'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24))
+
 
     X = sin_decl * sin_lat * cos_slope * (omega_rise_during_day_pixel_24 - omega_set_during_day_pixel_24) \
         - sin_decl * cos_lat * sin_slope * cos_aspect * (omega_rise_during_day_pixel_24 - omega_set_during_day_pixel_24) \
@@ -200,14 +232,19 @@ def calc_two_daytime_integration_limits(omega_rise_pixel_24, omega_set_pixel_24,
         * cos_aspect * (np.sin(omega_rise_during_day_pixel_24) - np.sin(omega_set_during_day_pixel_24)) \
         - cos_decl * sin_slope * sin_aspect * (np.cos(omega_rise_during_day_pixel_24)
                                                - np.cos(omega_set_during_day_pixel_24))
-    if X < 0:
-        print('\n','x = {:.5f}'.format(X),'there are two periods of direct beam radiation during the day')
+
+    if raster_mode:
+        # Just doing the if/else so that Jan's print statements will still work. No need to modify anything for raster.
+        pass
     else:
-        print('\n','x = {:.5f}'.format(X),'there is only one period of direct beam radiation during the day')
+
+        if X < 0:
+            print('\n','x = {:.5f}'.format(X),'there are two periods of direct beam radiation during the day')
+        else:
+            print('\n','x = {:.5f}'.format(X),'there is only one period of direct beam radiation during the day')
 
     return lower_int_limit_rise, upper_int_limit_set, omega_rise_pixel_24, omega_set_pixel_24, \
            omega_set_during_day_pixel_24, omega_rise_during_day_pixel_24, X
-
 
 
 # This function applies when Eq [7] from Allen 2006 is met.
@@ -646,7 +683,7 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
     solar_azimuth_angle_landsat, solar_time = \
         calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm, raster_mode)
 
-
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Testing Outputs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if raster_mode:
         solar_topo_raster_vars = [LatRad,  SlopeRad, AspectRad, cos_lat, sin_lat, cos_slope, sin_slope, cos_aspect, sin_aspect, \
       a, b, c, cos_theta_unadj, cos_theta_adj, \
@@ -657,6 +694,34 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
     'a', 'b', 'c', 'cos_theta_unadj', 'cos_theta_adj', \
     'cos_theta_horizontal_pixel', 'solar_incidence_angle_theta', 'solar_elevation_angle', 'solar_azimuth_angle', \
     'solar_azimuth_angle_landsat']
+
+        print('NON RASTER parameters\n')
+        print('\n',
+              'Output Function calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm)')
+        print('\n', 'DOY = {:.0f}'.format(DOY),
+              '   ', 'local_time = {:.2f}'.format(local_time), '  ', 'solar_time = {:.2f}'.format(solar_time), '  '
+              , 'Lz = {:.0f}'.format(Lz), '  ', 'Lm = {:.0f}\n'.format(Lm))
+
+        for name, var in zip(solar_topo_raster_vars_names, solar_topo_raster_vars):
+            print('{} is a raster\n'.format(name))
+            var = np.reshape(var, raster_shape)
+            print(var, '\n')
+
+            # plt.imshow(i)
+            # plt.show()
+
+        print(
+            ' \n more non-raster params \n DeclRad -> {}, DeclDeg -> {} sin_decl -> {}, cos_decl -> {}, bSc -> {}  Sc -> {} \n  HourAngleRad {}, '
+            'cos_hourangle {} sin_hourangle {}'.format(DeclRad, DeclDeg, sin_decl, cos_decl, bSc, Sc,
+                                                       HourAngleRad, cos_hourangle, sin_hourangle))
+
+        print('\n',
+              'slope azimuth METRIC: 0 degree for slopes oriented due south, ±180 degrees due north, -90 degrees due east,'
+              ' +90 degrees due west', '\n',
+              'solar azimuth Landsat: 0 degree for sun in north, 90 degrees sun in east, '
+              '180 degrees sun in south, 270 degrees sun in west')
+
+        print('ALLEN 2010 Slope and cos theta \n')
 
     else:
         print('\n',
@@ -682,46 +747,22 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
               'HourAngleRad = {:.4f}'.format(HourAngleRad), '    ', 'Sc = {:.4f}'.format(Sc), '    ',
               'bSc = {:.4f}'.format(bSc), '    ', 'a = {:.4f}'.format(a), '    ', 'b = {:.4f}'.format(b), '    ',
               'c = {:.4f}'.format(c))
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    # RUN calc_two_integration_limits function
     if raster_mode:
-        print('NON RASTER parameters\n')
-        print('\n',
-              'Output Function calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm)')
-        print('\n', 'DOY = {:.0f}'.format(DOY),
-              '   ', 'local_time = {:.2f}'.format(local_time), '  ', 'solar_time = {:.2f}'.format(solar_time), '  '
-              , 'Lz = {:.0f}'.format(Lz), '  ', 'Lm = {:.0f}\n'.format(Lm))
-
-        for name, var in zip(solar_topo_raster_vars_names, solar_topo_raster_vars):
-            print('{} is a raster\n'.format(name))
-            var = np.reshape(var, raster_shape)
-            print(var, '\n')
-
-            # plt.imshow(i)
-            # plt.show()
-
-        print(' \n more non-raster params \n DeclRad -> {}, DeclDeg -> {} sin_decl -> {}, cos_decl -> {}, bSc -> {}  Sc -> {} \n  HourAngleRad {}, '
-              'cos_hourangle {} sin_hourangle {}'.format(DeclRad, DeclDeg, sin_decl, cos_decl, bSc,  Sc,
-                                                         HourAngleRad, cos_hourangle, sin_hourangle))
-
-        print('\n',
-              'slope azimuth METRIC: 0 degree for slopes oriented due south, ±180 degrees due north, -90 degrees due east,'
-              ' +90 degrees due west', '\n',
-              'solar azimuth Landsat: 0 degree for sun in north, 90 degrees sun in east, '
-              '180 degrees sun in south, 270 degrees sun in west')
-
-        print('ALLEN 2010 Slope and cos theta \n')
-
 
         omega_set_hor, omega_rise_hor, cos_theta_omega_set_hor, cos_theta_omega_rise_hor, sin_omega_rise_pixel, \
         omega_rise_pixel_24, sin_omega_set_pixel, \
-        omega_set_pixel_24, lower_int_limit_rise, upper_int_limit_set, quadratic_function = calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode=True, raster_shape=raster_shape)
+        omega_set_pixel_24, lower_int_limit_rise, upper_int_limit_set, quadratic_function = calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode, raster_shape=raster_shape)
 
     else:
         omega_set_hor, omega_rise_hor, cos_theta_omega_set_hor, cos_theta_omega_rise_hor, sin_omega_rise_pixel, \
         omega_rise_pixel_24, sin_omega_set_pixel, \
         omega_set_pixel_24, lower_int_limit_rise, upper_int_limit_set, quadratic_function = \
-            calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode=False)
+            calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode)
 
+    # RUN calc_two_daytime_integration_limits function
     if raster_mode:
         omega_rise_pixel_24, omega_set_pixel_24, lower_int_limit_rise, upper_int_limit_set, \
         omega_set_during_day_pixel_24, omega_rise_during_day_pixel_24, X \
@@ -738,6 +779,93 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
                                                   cos_slope,
                                                   cos_lat, cos_decl, cos_aspect, a, b, c, quadratic_function)
 
+    # RUN integral_cos_theta
+    if raster_mode:
+        int_cos_theta = integral_cos_theta(omega_rise_hor, omega_set_hor, sin_decl, cos_decl, sin_lat, cos_lat,
+                                           sin_slope, cos_slope, sin_aspect, cos_aspect, raster_mode)
+    else:
+        int_cos_theta = integral_cos_theta(omega_rise_hor, omega_set_hor, sin_decl, cos_decl, sin_lat, cos_lat,
+                                           sin_slope, cos_slope, sin_aspect, cos_aspect)
+
+    # Radiation from Allen 2006 Eq [1]
+    Ra = 1367 * (1 / (1 + 0.033 * np.cos(DOY * 2 * np.pi / 365))) * int_cos_theta
+
+    if not raster_mode:
+        print('\n', 'int_cos_theta = {:.5f}'.format(int_cos_theta))
+        print('\n', 'omega_rise_hor = {:.5f}'.format(omega_rise_hor))
+        print('\n', 'omega_set_hor = {:.5f}'.format(omega_set_hor))
+        print('\n', 'Ra = {:.5f}'.format(Ra))
+
+
+    omega_rise_hor_time_decimal = omega_rise_hor * 180 / np.pi / 15 + 12
+
+    if raster_mode:
+        pass
+    else:
+
+        ihours = int(omega_rise_hor_time_decimal)
+        omega_rise_hor_time = ihours, (omega_rise_hor_time_decimal - ihours) * 60
+        print('%02d:%02d' % omega_rise_hor_time)
+
+        omega_set_hor_time_decimal = omega_set_hor * 180 / np.pi / 15 + 12
+        ihours = int(omega_set_hor_time_decimal)
+        omega_set_hor_time = ihours, (omega_set_hor_time_decimal - ihours) * 60
+        print('%02d:%02d' % omega_set_hor_time)
+
+        lower_int_limit_rise_time_decimal = lower_int_limit_rise * 180 / np.pi / 15 + 12
+        ihours = int(lower_int_limit_rise_time_decimal)
+        lower_int_limit_rise_time = ihours, (lower_int_limit_rise_time_decimal - ihours) * 60
+        print('%02d:%02d' % lower_int_limit_rise_time)
+
+        upper_int_limit_set_time_decimal = upper_int_limit_set * 180 / np.pi / 15 + 12
+        ihours = int(upper_int_limit_set_time_decimal)
+        upper_int_limit_set_time = ihours, (upper_int_limit_set_time_decimal - ihours) * 60
+        print('%02d:%02d' % upper_int_limit_set_time)
+
+        omega_set_during_day_pixel_24_time_decimal = omega_set_during_day_pixel_24 * 180 / np.pi / 15 + 12
+        ihours = int(omega_set_during_day_pixel_24_time_decimal)
+        omega_set_during_day_pixel_24_time = ihours, (omega_set_during_day_pixel_24_time_decimal - ihours) * 60
+        print('%02d:%02d' % omega_set_during_day_pixel_24_time)
+
+        omega_rise_during_day_pixel_24_time_decimal = omega_rise_during_day_pixel_24 * 180 / np.pi / 15 + 12
+        ihours = int(omega_rise_during_day_pixel_24_time_decimal)
+        omega_rise_during_day_pixel_24_time = ihours, (omega_rise_during_day_pixel_24_time_decimal - ihours) * 60
+        print('%02d:%02d' % omega_rise_during_day_pixel_24_time)
+
+
+    # Summary of output data for calculation of self-shadowing periods of pixel
+
+    if raster_mode:
+        pass
+    else:
+        print('\n', 'Summary of output data for calculation of self-shadowing periods of pixel')
+        print('\n', 'Latitude = {:.4f}'.format(LatDeg), 'degrees', '    ', 'DOY = {:.0f}'.format(DOY), '    ',
+              'slope = {:.0f}'.format(SlopeDeg), 'degrees', '     ',
+              'aspect = {:.0f}'.format(AspectDeg), 'degrees')
+        print('\n', 'omega_rise_hor = {:.4f}'.format(omega_rise_hor), '    ', 'Daylight starts at', '  ',
+              '%02d:%02d' % omega_rise_hor_time, '\n', 'omega_set_hor  =  {:.4f}'.format(omega_set_hor), '    ',
+              'Daylight ends at', '    ', '%02d:%02d' % omega_set_hor_time, )
+        if X < 0:
+            print('\n', 'X = {:.5f}'.format(X), 'at X<0 there are two periods of direct beam radiation during the day')
+            print('\n', 'lower_int_limit_rise = {:.4f}'.format(lower_int_limit_rise), '    ', 'Beam radiation starts at',
+                  '  ',
+                  '%02d:%02d' % lower_int_limit_rise_time, '\n',
+                  'upper_int_limit_set  =  {:.4f}'.format(upper_int_limit_set), '    ',
+                  'Beam radiation ends at', '    ', '%02d:%02d' % upper_int_limit_set_time, )
+            print('\n', 'omega_set_during_day_pixel_24   = {:.4f}'.format(omega_set_during_day_pixel_24), '      ',
+                  'Beam radiation ends during the day at', '  ', '%02d:%02d' % omega_set_during_day_pixel_24_time, '\n',
+                  'omega_rise_during_day_pixel_24  =  {:.4f}'.format(omega_rise_during_day_pixel_24), '      ',
+                  'Beam radiation starts again at', '         ', '%02d:%02d' % omega_rise_during_day_pixel_24_time, )
+        else:
+            print('\n', 'X = {:.5f}'.format(X), 'at X=>0 there is only one period of direct beam radiation during the day')
+            omega_set_during_day_pixel_24 = 9.0
+            omega_rise_during_day_pixel_24 = 9.0
+        #
+        print('\n', 'the four integration limits for export are')
+        print('\n', 'lower_int_limit_rise          = {:.4f}'.format(lower_int_limit_rise), '            ',
+              ' upper_int_limit_set  =  {:.4f}'.format(upper_int_limit_set))
+        print(' omega_set_during_day_pixel_24 = {:.4f}'.format(omega_set_during_day_pixel_24), '             ',
+              'omega_rise_during_day_pixel_24  =  {:.4f}'.format(omega_rise_during_day_pixel_24))
 
 
 if __name__ == "__main__":
@@ -768,29 +896,22 @@ if __name__ == "__main__":
     SlopeDeg = 80
     AspectDeg = 180
 
-    # # =============== RASTER MODE INPUTS (MSEC COMP) =======================
-    #
-    # # We may not need the DEM.
-    # dem_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped.tif'
-    # # RASTER EQUIVALENT TO SlopeDeg
-    # slope_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_slope.tif'
-    # # RASTER EQUIVALENT TO AspectDeg
-    # aspect_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_aspect.tif'
-    # # RASTER EQUIVALENT TO LatDeg
-    # latitude_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_lat.tif'
+    # =============== RASTER MODE INPUTS (MSEC COMP) =======================
 
-    # =============== RASTER MODE INPUTS (BUREAU COMP) =======================
-
+    # We may not need the DEM.
+    dem_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped.tif'
     # RASTER EQUIVALENT TO SlopeDeg
-    slope_path = '\\agustin\\homes\gparrish\Desktop\\radiation_on_slopes\\los_lunas_aoi_dem_clipped_slope.tif'
+    slope_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_slope.tif'
     # RASTER EQUIVALENT TO AspectDeg
-    aspect_path = dem_path = '\\agustin\\homes\gparrish\Desktop\\radiation_on_slopes\\los_lunas_aoi_dem_clipped_aspect'
+    aspect_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_aspect.tif'
     # RASTER EQUIVALENT TO LatDeg
-    latitude_path = '\\agustin\\homes\gparrish\Desktop\\radiation_on_slopes\\los_lunas_aoi_dem_clipped_lat.tif'
+    latitude_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_lat.tif'
 
-    # todo - make it optional to run a raster mode or a 1-D mode.
+    # We make it optional to run a raster mode or a 1-D mode.
+    raster_mode = True
 
-    # calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm, raster_mode=False)
-
-    # # The way the function would be called to run the function in raster mode
-    calculate_integration_limits(DOY, latitude_path, slope_path, aspect_path, local_time, Lz, Lm, raster_mode=True)
+    if raster_mode:
+        # # The way the function would be called to run the function in raster mode
+        calculate_integration_limits(DOY, latitude_path, slope_path, aspect_path, local_time, Lz, Lm, raster_mode)
+    else:
+        calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm, raster_mode)
