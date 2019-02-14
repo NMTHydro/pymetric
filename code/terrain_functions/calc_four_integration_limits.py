@@ -132,7 +132,7 @@ def calc_two_daytime_integration_limits(omega_rise_pixel_24, omega_set_pixel_24,
         omega_rise_during_day_pixel_24 = max(A,B)
         print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24), '      ',
                   'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
-    # TODO -------------------------------------------------------------------------
+    # TODO ------------------------------------------------------------------------------
     #
     #     STEP D - Section(iv - e)
     #
