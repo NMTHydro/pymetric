@@ -14,21 +14,186 @@
 # limitations under the License.
 # ===============================================================================
 import os
-import drigo
 import numpy as np
 from matplotlib import pyplot as plt
 # ============= standard library imports ========================
-
+from code.terrain_functions.raster_util import convert_raster_to_array
 
 # TODO - MAKE SURE THAT YOU USE PYMETRIC-WRITTEN FUNCTIONS TO READ THE RASTERS AS ARRAYS DONT REPEAT FUNCTIONS ALREADY WRITTEN BY DRI
 
+def calc_two_daytime_integration_limits(omega_rise_pixel_24, omega_set_pixel_24, lower_int_limit_rise,
+                                        upper_int_limit_set, sin_slope, sin_lat, sin_decl, sin_aspect, cos_slope,
+                                        cos_lat, cos_decl, cos_aspect, a, b, c, quadratic_function, raster_mode=False):
+
+    # STEP D: Additional limits on omega_rise_pixel_24 and omega_set_pixel_24 for numerical stability and
+    #    twice per day periods of sun
+    #
+    # STEP D - Section (i)
+    # The argument of Eqs. [13a and 13b] cannot be equal to zero for numerical stability. This issue has been taken care of
+    #   under STEP B and STEP C.
+
+
+
+    # STEP D - Section (ii)
+    #
+    # The value of omega_rise_pixel_24 must be smaller or equal to omega_set_pixel_24 (i.e. sunrise occurs before sunset).
+    #
+
+    if omega_set_pixel_24 < omega_rise_pixel_24:
+        omega_rise_pixel_24 = omega_set_pixel_24
+        print ('\n','STEP D - Section (ii)','\n','IF-statement in D_ii is TRUE:','\n','Slope is always shaded because '
+                                                         'omega_rise_pixel_24 equals omega_set_pixel_24')
+        print ('\n', 'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24),'    ',
+           'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24))
+    else:
+        print('\n','STEP D - Section (ii)','\n','Check that omega_rise_pixel_24 is smaller than omega_set_pixel_24','\n',
+              'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24), '  <  ',
+          'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24))
+    #
+    # This means that there is no direct solar beam during the day; the slope is always shaded.
+    #
+    # STEP D - Section (iii)
+    # The sine values in Eqs. [13a and 13b] cannot be smaller than -1 or larger than +1. This issue has been taken care of
+    #   under STEP B and STEP C.
+    #
+    # STEP D - Section (iv)
+    #    Check if possibility exists for two periods of direct beam radiation during the day.
+    #    The two daytime integration limits are defined as follows:
+    #       omega_set_during_day_pixel_24 = the time angle when the center of the solar disk disappears the first time
+    #       omega_rise_during_day_pixel_24 = the time angle when the center of the solar disk reappears over the surface
+    #
+    print('\n','STEP D - Section (iv)','\n','Check IF-statement sin_slope > (sin_lat * cos_decl + cos_lat * sin_decl)')
+    #    temp = sin_lat * cos_decl + cos_lat * sin_decl
+    if sin_slope <= sin_lat * cos_decl + cos_lat * sin_decl:
+        print ('\n','sin_slope = {:.5f}'.format(sin_slope),'  <   ',
+               'sin_lat * cos_decl + cos_lat * sin_decl = {:.5f}'.format(sin_lat * cos_decl + cos_lat * sin_decl))
+        omega_set_during_day_pixel_24 = 0.000000
+        omega_rise_during_day_pixel_24 = 0.000000
+        print(' There is only one period of direct beam radiation during the day', '\n',
+              'No daytime integration limits exist and therefore:','',
+              'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24),'    ',
+              'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
+    else:
+        print ('\n','sin_slope = {:.5f}'.format(sin_slope),'  >   ',
+               'sin_lat * cos_decl + cos_lat * sin_decl = {:.5f}'.format(sin_lat * cos_decl + cos_lat * sin_decl))
+        print (' Possibility exists for two periods of direct beam radiation during the day', '\n','\n',
+               'STEP D - Section (iv-b, c)')
+    #
+    #    STEP D - Section (iv-a)
+    #    omega_rise_pixel_24 and omega_set_pixel_24 have already been calculated in STEP B and STEP C
+    #
+    #    STEP D - Section (iv-b, c)
+    #    The candidates for intermediate integration limits omega_set_during_day_pixel_24 and omega_rise_during_day_pixel_24
+    #        are
+    sin_A = (a * c + b * np.sqrt(quadratic_function)) / (b**2 + c**2)
+    sin_B = (a * c - b * np.sqrt(quadratic_function)) / (b**2 + c**2)
+    #
+    #     STEP D - Section(iv - c)
+    #
+    if sin_A < -1.0:
+            sin_A = -1.0
+    if sin_A > 1.0:
+            sin_A = 1.0
+    if sin_B < -1.0:
+            sin_B = -1.0
+    if sin_B > 1.0:
+            sin_B = 1.0
+    print(' sin_A = {:.5f}'.format(sin_A),'      ','sin_B = {:.5f}'.format(sin_B))
+    A = np.arcsin(sin_A)
+    B = np.arcsin(sin_B)
+    print (' A = {:.5f}'.format(A),'          ','B = {:.5f}'.format(B),'\n','\n',
+              'STEP D - Section(iv - d)')
+    #
+    #     STEP D - Section(iv - d)
+    #
+    omega_set_during_day_pixel_24 = min(A,B)
+    omega_rise_during_day_pixel_24 = max(A,B)
+    print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24), '      ',
+              'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
+    #
+    #     STEP D - Section(iv - e)
+    #
+    cos_theta_omega_set_during_day_pixel_24 = - a + b * np.cos(omega_set_during_day_pixel_24) + c \
+                                                  * np.sin(omega_set_during_day_pixel_24)
+    cos_theta_omega_rise_during_day_pixel_24 = - a + b * np.cos(omega_rise_during_day_pixel_24) + c \
+                                                  * np.sin(omega_rise_during_day_pixel_24)
+    print('\n', 'cos_theta_omega_set_during_day_pixel_24 = {:.5f}'.format(cos_theta_omega_set_during_day_pixel_24),
+              '      ',
+              'cos_theta_omega_rise_during_day_pixel_24 = {:.5f}'.format(cos_theta_omega_rise_during_day_pixel_24))
+
+    if cos_theta_omega_set_during_day_pixel_24 < -0.001 or cos_theta_omega_set_during_day_pixel_24 > 0.001:
+            omega_set_during_day_pixel_24 = - np.pi - omega_set_during_day_pixel_24
+    if cos_theta_omega_rise_during_day_pixel_24 < -0.001 or cos_theta_omega_rise_during_day_pixel_24 > 0.001:
+            omega_rise_during_day_pixel_24 = np.pi - omega_rise_during_day_pixel_24
+    print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24),
+              '      ',
+              'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
+    print('\n', 'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24),
+              '      ',
+              'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24))
+    #
+    #     STEP D - Section(iv - f and g)
+    #
+    #        if omega_set_during_day_pixel_24 < omega_rise_pixel_24 or omega_rise_during_day_pixel_24 > omega_set_pixel_24:
+    #            print('\n',' There is only one period of direct beam radiation during the day', '\n',' because','\n',
+    #                  ' omega_set_during_day_pixel_24 < omega_rise_pixel_24 or '
+    #                  'omega_rise_during_day_pixel_24 < omega_set_pixel_24')
+    #            print('  omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24),
+    #            'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24),
+    #                  'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24),
+    #                  ' omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24))
+    #            omega_set_during_day_pixel_24 = 0.000000
+    #            omega_rise_during_day_pixel_24 = 0.000000
+    #        else:
+    #            X = sin_decl * sin_lat * cos_slope * (omega_rise_during_day_pixel_24 - omega_set_during_day_pixel_24)
+    #            - sin_decl * cos_lat * sin_slope * cos_aspect * (omega_rise_during_day_pixel_24
+    #                                                             - omega_set_during_day_pixel_24)
+    #            + cos_decl * cos_lat * cos_slope * (np.sin(omega_rise_during_day_pixel_24)
+    #                                                - np.sin(omega_set_during_day_pixel_24))
+    #            + cos_decl * sin_lat * sin_slope * cos_aspect * (np.sin(omega_rise_during_day_pixel_24)
+    #                                                             - np.sin(omega_set_during_day_pixel_24))
+    #            - cos_decl * sin_slope * sin_aspect * (np.cos(omega_rise_during_day_pixel_24)
+    #                                                     - np.cos(omega_set_during_day_pixel_24))
+    #            if X < 0:
+    #                print('\n','x = {:.5f}'.format(X),'there are two periods of direct beam radiation during the day')
+    #            else:
+    #                print('\n','x = {:.5f}'.format(X),'there is only one period of direct beam radiation during the day')
+    #
+    if omega_set_during_day_pixel_24 < omega_rise_pixel_24:
+            omega_set_during_day_pixel_24 = omega_rise_pixel_24
+    if omega_rise_during_day_pixel_24 > omega_set_pixel_24:
+            omega_rise_during_day_pixel_24 = omega_set_pixel_24
+
+
+    print('\n', 'omega_set_during_day_pixel_24 = {:.5f}'.format(omega_set_during_day_pixel_24), '      ',
+              'omega_rise_during_day_pixel_24 = {:.5f}'.format(omega_rise_during_day_pixel_24))
+    print('\n', 'omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24), '      ',
+              'omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24))
+
+    X = sin_decl * sin_lat * cos_slope * (omega_rise_during_day_pixel_24 - omega_set_during_day_pixel_24) \
+        - sin_decl * cos_lat * sin_slope * cos_aspect * (omega_rise_during_day_pixel_24 - omega_set_during_day_pixel_24) \
+        + cos_decl * cos_lat * cos_slope * (np.sin(omega_rise_during_day_pixel_24)
+                                            - np.sin(omega_set_during_day_pixel_24)) + cos_decl * sin_lat * sin_slope \
+        * cos_aspect * (np.sin(omega_rise_during_day_pixel_24) - np.sin(omega_set_during_day_pixel_24)) \
+        - cos_decl * sin_slope * sin_aspect * (np.cos(omega_rise_during_day_pixel_24)
+                                               - np.cos(omega_set_during_day_pixel_24))
+    if X < 0:
+        print('\n','x = {:.5f}'.format(X),'there are two periods of direct beam radiation during the day')
+    else:
+        print('\n','x = {:.5f}'.format(X),'there is only one period of direct beam radiation during the day')
+
+    return lower_int_limit_rise, upper_int_limit_set, omega_rise_pixel_24, omega_set_pixel_24, \
+           omega_set_during_day_pixel_24, omega_rise_during_day_pixel_24, X
+
+
+
 # This function applies when Eq [7] from Allen 2006 is met.
-def calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode=False):
+def calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode=False, raster_shape=None):
     # This function is based on Allen (2006)
     # The function is for the northern hemisphere below the arctic circle, i.e. there are no 24 hour days or nights
     # See Appendix A in Allen (2006)
 
-    # STEP A
+    # ========== STEP A ==========
     # Calculate the sunset and sunrise angles for horizontal surfaces. Eq. [8]
     # Allen (2006) uses often [minus omega_s] for sunrise angle; this function uses the variable omega_rise_hor,
     #     the minus sign is already part of this variable.
@@ -53,14 +218,26 @@ def calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode=False):
         print(' cos_theta_omega_rise_hor = {:.5f}'.format(cos_theta_omega_rise_hor), '    ',
               'cos_theta_omega_set_hor = {:.5f}'.format(cos_theta_omega_set_hor))
 
-    # STEP D - Section (i)
+    # ========== STEP D - Section (i) ==========
     #     In Eqs. [13a, b] the expression (b^2 + C^2 - a^2) under the square root sign must be limited to  > 0 for
     #         numerical stability. Therefore, if (b^2 + C^2 - a^2) is 0 or less, it is set equal to 0.001.
+
     quadratic_function = b**2 + c**2 - a**2
-    print('\n', 'STEP D - Section (i)', '\n', 'Before check on positive value', '      ', 'quadratic_function =  {:.6f}'.format(quadratic_function))
-    if quadratic_function <= 0.0:
-        quadratic_function = 0.001
-    print(' After check on positive value', '       ', 'quadratic_function =  {:.6f}'.format(quadratic_function))
+
+    if raster_mode:
+        print('\n', 'STEP D - Section (i)', '\n', 'Before check on positive value', '      ',
+              'quadratic_function = \n {}'.format(quadratic_function))
+        quadratic_function[quadratic_function <= 0.0] = 0.001
+        print(' After check on positive value \n '
+              'quadratic_function =  {}'.format(quadratic_function[quadratic_function <= 0.0].any()))
+    else:
+        print('\n', 'STEP D - Section (i)', '\n', 'Before check on positive value', '      ', 'quadratic_function =  {:.6f}'.format(quadratic_function))
+        if quadratic_function <= 0.0:
+            quadratic_function = 0.001
+
+        print(' After check on positive value', '       ', 'quadratic_function =  {:.6f}'.format(quadratic_function))
+
+    # ========== STEP B ==================
     print('\n', 'STEP B: Determine the beginning integration limit at sun rise',
           '\n','\n', 'STEP B - Section (i)')
     #
@@ -69,164 +246,265 @@ def calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode=False):
     # Calculate the sine of the sunrise angle on a specific pixel using Eq. [13a]
     sin_omega_rise_pixel = (a * c - b * np.sqrt(quadratic_function)) / (b**2 + c**2)
 
-    if not raster_mode:
+    if raster_mode:
+        print(' Before check on sin values within ±1    sin_omega_rise_pixel = ')
+
+        sin_omega_rise_pixel[sin_omega_rise_pixel < -1.0 ] = -1.0
+        sin_omega_rise_pixel[sin_omega_rise_pixel > 1.0] = 1.0
+        print(' After check on sin values within ±1 \n '
+              'sin_omega_rise_pixel'
+              ' = {}'.format(sin_omega_rise_pixel[(sin_omega_rise_pixel < -1.0) & (sin_omega_rise_pixel > 1.0)].any()))
+
+    else:
         print(' Before check on sin values within ±1    sin_omega_rise_pixel = {:.5f}'.format(sin_omega_rise_pixel))
 
-    if sin_omega_rise_pixel < -1.0:
-        sin_omega_rise_pixel = -1.0
-    if sin_omega_rise_pixel > 1.0:
-        sin_omega_rise_pixel = 1.0
+        if sin_omega_rise_pixel < -1.0:
+            sin_omega_rise_pixel = -1.0
+        if sin_omega_rise_pixel > 1.0:
+            sin_omega_rise_pixel = 1.0
 
-    if not raster_mode:
         print(' After check on sin values within ±1     sin_omega_rise_pixel = {:.5f}'.format(sin_omega_rise_pixel))
-        print('\n', 'STEP B - Section (ii)')
+
+
+    print('\n', 'STEP B - Section (ii)')
 
     # STEP B - Section (ii)
     omega_rise_pixel = np.arcsin(sin_omega_rise_pixel)
 
-    if not raster_mode:
+    if raster_mode:
+        print(' omega_rise_pixel = \n {}'.format(omega_rise_pixel))
+    else:
         print(' omega_rise_pixel = {:.5f}'.format(omega_rise_pixel))
 
-        print('\n', 'STEP B - Section (iii)')
+
+    print('\n', 'STEP B - Section (iii)')
 
     # STEP B - Section (iii)
     # Calculate cosine of theta using omega_rise_pixel using Eq. [14]
     #cos_theta_omega_rise_pixel_eq14 = - a + b * np.cos(omega_rise_pixel) + c * np.sin(omega_rise_pixel)
     cos_theta_omega_rise_pixel = - a + b * np.cos(omega_rise_pixel) + c * np.sin(omega_rise_pixel)
 
-    if not raster_mode:
+
+
+    if raster_mode:
+        # STEP B - Section (iv) RASTER MODE
+        omega_rise_pixel_24 = np.empty(cos_theta_omega_rise_pixel.shape)
+        # todo - come back to here to make sure that we get the right candidate is selected
+
+        print('omega rise pixel 24', omega_rise_pixel_24.shape)
+        print('cos_theta_omega_rise_hor', cos_theta_omega_rise_hor.shape)
+        print('cos_theta_omega_rise_pixel', cos_theta_omega_rise_hor.shape)
+        print('omega_rise_pixel', omega_rise_pixel.shape)
+
+
+        # TODO - THIS REALLY WORKS YEAH?!?!?
+        omega_rise_pixel_24[(cos_theta_omega_rise_hor <= cos_theta_omega_rise_pixel) & (cos_theta_omega_rise_hor < 0.001)] = omega_rise_pixel[(cos_theta_omega_rise_hor <= cos_theta_omega_rise_pixel) & (cos_theta_omega_rise_hor < 0.001)]
+        print('the omega_rise_pixel array \n', omega_rise_pixel_24)
+
+        print('For the values that have not been set to omega_rise_pixel we need to select new candidates')
+
+        # STEP B - Section (v) RASTER MODE
+
+        omega_rise_pixel_x = -np.pi - omega_rise_pixel
+
+        # STEP B - Section (v-a) RASTER MODE
+        cos_theta_omega_rise_pixel_x = - a + b * np.cos(omega_rise_pixel_x) + c * np.sin(omega_rise_pixel_x)
+        omega_rise_pixel_24[cos_theta_omega_rise_pixel_x > 0.001] = omega_rise_hor[cos_theta_omega_rise_pixel_x > 0.001]
+
+        # Section B_v_b RASTER MODE
+
+        omega_rise_pixel_24[(cos_theta_omega_rise_pixel_x <= 0.001) & (omega_rise_pixel_x <= omega_rise_hor)] = omega_rise_hor[(cos_theta_omega_rise_pixel_x <= 0.001) & (omega_rise_pixel_x <= omega_rise_hor)]
+        omega_rise_pixel_24[(cos_theta_omega_rise_pixel_x <= 0.001) & (omega_rise_pixel_x > omega_rise_hor)] = - np.pi - omega_rise_pixel[(cos_theta_omega_rise_pixel_x <= 0.001) & (omega_rise_pixel_x > omega_rise_hor)]
+
+        # STEP B - Section (vi) RASTER MODE
+        omega_rise_pixel_24[omega_rise_pixel_24 < omega_rise_hor] = omega_rise_hor[omega_rise_pixel_24 < omega_rise_hor]
+        # STEP B - Section (vii) RASTER MODE
+        lower_int_limit_rise = omega_rise_pixel_24
+
+    else:
+        # STEP B - Section (iv)
         print(' Before check on cos_theta_omega_rise_pixel in STEP B - Section (iv)     '
               'cos_theta_omega_rise_pixel = {:.5f}'.format(cos_theta_omega_rise_pixel))
 
-        # STEP B - Section (iv)
+
         print('\n','STEP B - Section (iv)')
         print(' IF cos_theta_omega_rise_hor <= cos_theta_omega_rise_pixel AND cos_theta_omega_rise_pixel < 0.001')
         print('                {:.9f}'.format(cos_theta_omega_rise_hor),
               '                      {:.9f}'.format(cos_theta_omega_rise_pixel), '                          0.001')
 
-    if cos_theta_omega_rise_hor <= cos_theta_omega_rise_pixel and cos_theta_omega_rise_pixel < 0.001:
-        omega_rise_pixel_24 = omega_rise_pixel
-        print('\n','IF-statement is TRUE so that omega_rise_pixel_24 = omega_rise_pixel')
-        print(' first omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24))
-    else:
-        print('\n','IF-statement is FALSE so that a new candidate for omega_rise_pixel needs to be selected')
-        print('\n','STEP B - Section (v)')
-        print(' The new candidate is called omega_rise_pixel_x = - np.pi - omega_rise_pixel')
+        if cos_theta_omega_rise_hor <= cos_theta_omega_rise_pixel and cos_theta_omega_rise_pixel < 0.001:
+            omega_rise_pixel_24 = omega_rise_pixel
+            print('\n','IF-statement is TRUE so that omega_rise_pixel_24 = omega_rise_pixel')
+            print(' first omega_rise_pixel_24 = {:.5f}'.format(omega_rise_pixel_24))
+        else:
+            print('\n','IF-statement is FALSE so that a new candidate for omega_rise_pixel needs to be selected')
+            print('\n','STEP B - Section (v)')
+            print(' The new candidate is called omega_rise_pixel_x = - np.pi - omega_rise_pixel')
 
-    # STEP B - Section (v)
-        omega_rise_pixel_x = - np.pi - omega_rise_pixel
-        print(' omega_rise_pixel_x = {:.5f}'.format(omega_rise_pixel_x),
-              ' omega_rise_pixel = {:.5f}'.format(omega_rise_pixel))
-        print(' sin_omega_rise_pixel_x = {:.5f}'.format(np.sin(omega_rise_pixel_x)),
-              ' sin_omega_rise_pixel = {:.5f}'.format(sin_omega_rise_pixel))
+            # STEP B - Section (v)
+            omega_rise_pixel_x = - np.pi - omega_rise_pixel
+            print(' omega_rise_pixel_x = {:.5f}'.format(omega_rise_pixel_x),
+                  ' omega_rise_pixel = {:.5f}'.format(omega_rise_pixel))
+            print(' sin_omega_rise_pixel_x = {:.5f}'.format(np.sin(omega_rise_pixel_x)),
+                  ' sin_omega_rise_pixel = {:.5f}'.format(sin_omega_rise_pixel))
 
-    # STEP B - Section (v-a)
-        cos_theta_omega_rise_pixel_x = - a + b * np.cos(omega_rise_pixel_x) + c * np.sin(omega_rise_pixel_x)
-        print(' cos_theta_omega_rise_pixel_x =  {:.5f}'.format(cos_theta_omega_rise_pixel_x),'  ',
-              ' omega_rise_hor =  {:.5f}'.format(omega_rise_hor))
-        if cos_theta_omega_rise_pixel_x > 0.001:
+            # STEP B - Section (v-a)
+            cos_theta_omega_rise_pixel_x = - a + b * np.cos(omega_rise_pixel_x) + c * np.sin(omega_rise_pixel_x)
+            print(' cos_theta_omega_rise_pixel_x =  {:.5f}'.format(cos_theta_omega_rise_pixel_x),'  ',
+                  ' omega_rise_hor =  {:.5f}'.format(omega_rise_hor))
+            if cos_theta_omega_rise_pixel_x > 0.001:
+                omega_rise_pixel_24 = omega_rise_hor
+                print(' IF-statement in B_v_a TRUE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
+            # Would it not be better to use instead of omega_rise_hor the value for omega_rise_pixel_horizontal, i.e. slope = 0?
+            # Section B_v_b
+            elif cos_theta_omega_rise_pixel_x <= 0.001 and omega_rise_pixel_x <= omega_rise_hor:
+                omega_rise_pixel_24 = omega_rise_hor
+                print(' IF-statement in B_v_b TRUE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
+            # Section B_v_c
+            elif cos_theta_omega_rise_pixel_x <= 0.001 and omega_rise_pixel_x > omega_rise_hor:
+                omega_rise_pixel_24 = - np.pi - omega_rise_pixel
+                print(' IF-statement in B_v_c TRUE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
+        print('check for omega_rise_pixel_24','   ','omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
+        # STEP B - Section (vi)
+        if omega_rise_pixel_24 < omega_rise_hor:
             omega_rise_pixel_24 = omega_rise_hor
-            print(' IF-statement in B_v_a TRUE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
-    # Would it not be better to use instead of omega_rise_hor the value for omega_rise_pixel_horizontal, i.e. slope = 0?
-    # Section B_v_b
-        elif cos_theta_omega_rise_pixel_x <= 0.001 and omega_rise_pixel_x <= omega_rise_hor:
-            omega_rise_pixel_24 = omega_rise_hor
-            print(' IF-statement in B_v_b TRUE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
-        # Section B_v_c
-        elif cos_theta_omega_rise_pixel_x <= 0.001 and omega_rise_pixel_x > omega_rise_hor:
-            omega_rise_pixel_24 = - np.pi - omega_rise_pixel
-            print(' IF-statement in B_v_c TRUE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
-    print('check for omega_rise_pixel_24','   ','omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
-    # STEP B - Section (vi)
-    if omega_rise_pixel_24 < omega_rise_hor:
-        omega_rise_pixel_24 = omega_rise_hor
-        print('\n','IF-statement in B_vi TRUE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
-    else:
-        print('\n','IF-statement in B_vi FALSE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
-    # STEP B - Section (vii)
-    lower_int_limit_rise = omega_rise_pixel_24
-    print ('\n','OUTPUT from STEP B:','     ','  lower_int_limit_rise = {:.5f}'.format(lower_int_limit_rise))
+            print('\n','IF-statement in B_vi TRUE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
+        else:
+            print('\n','IF-statement in B_vi FALSE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
+        # STEP B - Section (vii)
+        lower_int_limit_rise = omega_rise_pixel_24
+        print ('\n','OUTPUT from STEP B:','     ','  lower_int_limit_rise = {:.5f}'.format(lower_int_limit_rise))
+
 
     # STEP C: Determine the ending integration limit at sun set
     # STEP C - Section (i)
     # Calculate the sine of the sunset angle on a specific pixel using Eq. [13b]
     sin_omega_set_pixel = (a * c + b * np.sqrt(quadratic_function)) / (b**2 + c**2)
     #
-    print ('\n','\n','STEP C: Determine the ending integration limit at sun set','\n','\n','STEP C - Section (i)','\n',
-        'Before check on sin values within ±1 sin_omega_rise_pixel = {:.5f}'.format(sin_omega_set_pixel))
-    #
-    if sin_omega_set_pixel < -1.0:
-        sin_omega_set_pixel = -1.0
-    if sin_omega_set_pixel > 1.0:
-        sin_omega_set_pixel = 1.0
-    #
-    print(' After check on sin values within ±1     sin_omega_set_pixel = {:.5f}'.format(sin_omega_set_pixel))
-    print('\n', 'STEP C - Section (ii)')
-    #
+
+    if raster_mode:
+
+        print('\n', '\n', 'STEP C: Determine the ending integration limit at sun set', '\n', '\n',
+              'STEP C - Section (i)', '\n',
+              'Before check on sin values within ±1 sin_omega_rise_pixel ')
+
+        sin_omega_set_pixel[sin_omega_set_pixel < -1.0] = -1.0
+        sin_omega_set_pixel[sin_omega_set_pixel > 1.0] = 1.0
+
+    else:
+
+        print ('\n','\n','STEP C: Determine the ending integration limit at sun set','\n','\n','STEP C - Section (i)','\n',
+            'Before check on sin values within ±1 sin_omega_rise_pixel = {:.5f}'.format(sin_omega_set_pixel))
+        #
+        if sin_omega_set_pixel < -1.0:
+            sin_omega_set_pixel = -1.0
+        if sin_omega_set_pixel > 1.0:
+            sin_omega_set_pixel = 1.0
+        #
+        print(' After check on sin values within ±1     sin_omega_set_pixel = {:.5f}'.format(sin_omega_set_pixel))
+        print('\n', 'STEP C - Section (ii)')
+        #
+
     # STEP C - Section (ii)
     omega_set_pixel = np.arcsin(sin_omega_set_pixel)
-    print (' omega_set_pixel = {:.5f}'.format(omega_set_pixel))
+
+    if not raster_mode:
+        print(' omega_set_pixel = {:.5f}'.format(omega_set_pixel))
 
     print('\n', 'STEP C - Section (iii)')
     # STEP C - Section (iii)
     # Calculate cosine of theta using omega_set_pixel using Eq. [14]
     cos_theta_omega_set_pixel = - a + b * np.cos(omega_set_pixel) + c * np.sin(omega_set_pixel)
-    print(' Before check on cos_theta_omega_set_pixel in STEP C - Section (iv)     '
-          'cos_theta_omega_set_pixel = {:.5f}'.format(cos_theta_omega_set_pixel))
-    # STEP C - Section (iv)
-    print ('\n','STEP C - Section (iv)')
-    print (' IF cos_theta_omega_set_hor <= cos_theta_omega_set_pixel AND cos_theta_omega_set_pixel < 0.001')
-    print('                {:.9f}'.format(cos_theta_omega_set_hor),
-          '                      {:.9f}'.format(cos_theta_omega_set_pixel), '                          0.001')
-    if cos_theta_omega_set_hor <= cos_theta_omega_set_pixel and cos_theta_omega_set_pixel < 0.001:
-        omega_set_pixel_24 = omega_set_pixel
-        print ('\n','IF-statement is TRUE so that omega_set_pixel_24 = omega_set_pixel')
-        print (' first omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24))
-    else:
-        print('\n','IF-statement is FALSE so that a new candidate for omega_set_pixel needs to be selected')
-        print ('\n','STEP C - Section (v)')
-        print(' The new candidate is called omega_set_pixel_x = np.pi - omega_set_pixel')
-    # STEP C - Section (v)
+
+    if raster_mode:
+
+        # STEP C - Section (iv)
+        print('STEP C - Section (iv) RASTER MODE')
+        omega_set_pixel_24 = np.empty(cos_theta_omega_set_pixel.shape)
+        omega_set_pixel_24[(cos_theta_omega_set_hor <= cos_theta_omega_set_pixel) & (cos_theta_omega_set_pixel < 0.001)] = omega_set_pixel[(cos_theta_omega_set_hor <= cos_theta_omega_set_pixel) & (cos_theta_omega_set_pixel < 0.001)]
+
+        # STEP C - Section (v)
+        print('STEP C - Section (v)')
         omega_set_pixel_x = np.pi - omega_set_pixel
-        print(' omega_set_pixel_x = {:.5f}'.format(omega_set_pixel_x),
-              ' omega_set_pixel = {:.5f}'.format(omega_set_pixel))
-        print(' sin_omega_set_pixel_x = {:.5f}'.format(np.sin(omega_set_pixel_x)),
-              ' sin_omega_set_pixel = {:.5f}'.format(sin_omega_set_pixel))
-    # STEP C - Section (v-a)
+
+        # STEP C - Section (v-a)
+        print('STEP C - Section (v-a)')
         cos_theta_omega_set_pixel_x = - a + b * np.cos(omega_set_pixel_x) + c * np.sin(omega_set_pixel_x)
-        print(' cos_theta_omega_set_pixel_x =  {:.5f}'.format(cos_theta_omega_set_pixel_x),'  ',
-              ' omega_set_hor =  {:.5f}'.format(omega_set_hor))
-        if cos_theta_omega_set_pixel_x > 0.001:
-            omega_set_pixel_24 = omega_set_hor
-            print(' IF-statement in C_v_a TRUE: omega_set_pixel_24 =  {:.5f}'.format(omega_set_pixel_24))
-    # Would it not be better to use instead of omega_set_hor the value for omega_set_pixel_horizontal, i.e. slope = 0?
+        omega_set_pixel_24[cos_theta_omega_set_pixel_x > 0.001] = omega_set_hor[cos_theta_omega_set_pixel_x > 0.001]
+
         # Section C_v_b
-        elif cos_theta_omega_set_pixel_x <= 0.001 and omega_set_pixel_x >= omega_set_hor:
-            omega_set_pixel_24 = omega_set_hor
-            print(' IF-statement in C_v_b TRUE: omega_set_pixel_24 =  {:.5f}'.format(omega_set_pixel_24))
+        print('Section C_v_b')
+        omega_set_pixel_24[(cos_theta_omega_set_pixel_x <= 0.001) & (omega_set_pixel_x >= omega_set_hor)] = omega_set_hor[(cos_theta_omega_set_pixel_x <= 0.001) & (omega_set_pixel_x >= omega_set_hor)]
+
         # Section C_v_c
-        elif cos_theta_omega_set_pixel_x <= 0.001 and omega_set_pixel_x < omega_set_hor:
-            omega_set_pixel_24 = np.pi - omega_set_pixel
-            print(' IF-statement in C_v_c TRUE: omega_set_pixel_24 =  {:.5f}'.format(omega_set_pixel_24))
-    # STEP C - Section (vi)
-    if omega_set_pixel_24 > omega_set_hor:
-        omega_set_pixel_24 = omega_set_hor
-        print(' IF-statement in C_vi TRUE: omega_set_pixel_24 =  {:.5f}'.format(omega_set_pixel_24))
+        print('STEP C - Section (vi)')
+        omega_set_pixel_24[(cos_theta_omega_set_pixel_x <= 0.001) & (omega_set_pixel_x < omega_set_hor)] = np.pi - omega_set_pixel[(cos_theta_omega_set_pixel_x <= 0.001) & (omega_set_pixel_x < omega_set_hor)]
+
+        # STEP C - Section (vi)
+        print('Section C_v_c')
+        omega_set_pixel_24[omega_set_pixel_24 > omega_set_hor] = omega_set_hor[omega_set_pixel_24 > omega_set_hor]
+
+        # STEP C - Section (vii)
+        print('STEP C - Section (vii)')
+        upper_int_limit_set = omega_set_pixel_24
+
     else:
-        print('\n', 'IF-statement in C_vi FALSE: omega_set_pixel_24 =  {:.5f}'.format(omega_set_pixel_24))
-    # STEP C - Section (vii)
-    upper_int_limit_set = omega_set_pixel_24
-    print('\n', 'OUTPUT from STEP C:', '     ', '  upper_int_limit_set/omega_set_pixel_24 = {:.5f}'.format(upper_int_limit_set),
-          '          ','omega_set_hor = {:.5f}'.format(omega_set_hor))
-    print('\n', 'OUTPUT from STEP B:', '     ', '  lower_int_limit_rise/omega_rise_pixel_24 = {:.5f}'.format(lower_int_limit_rise),
-          '        ','omega_rise_hor = {:.5f}'.format(omega_rise_hor))
+        print(' Before check on cos_theta_omega_set_pixel in STEP C - Section (iv)     '
+              'cos_theta_omega_set_pixel = {:.5f}'.format(cos_theta_omega_set_pixel))
+        # STEP C - Section (iv)
+        print ('\n','STEP C - Section (iv)')
+        print (' IF cos_theta_omega_set_hor <= cos_theta_omega_set_pixel AND cos_theta_omega_set_pixel < 0.001')
+        print('                {:.9f}'.format(cos_theta_omega_set_hor),
+              '                      {:.9f}'.format(cos_theta_omega_set_pixel), '                          0.001')
+        if cos_theta_omega_set_hor <= cos_theta_omega_set_pixel and cos_theta_omega_set_pixel < 0.001:
+            omega_set_pixel_24 = omega_set_pixel
+            print ('\n','IF-statement is TRUE so that omega_set_pixel_24 = omega_set_pixel')
+            print (' first omega_set_pixel_24 = {:.5f}'.format(omega_set_pixel_24))
+        else:
+            print('\n','IF-statement is FALSE so that a new candidate for omega_set_pixel needs to be selected')
+            print ('\n','STEP C - Section (v)')
+            print(' The new candidate is called omega_set_pixel_x = np.pi - omega_set_pixel')
+        # STEP C - Section (v)
+            omega_set_pixel_x = np.pi - omega_set_pixel
+            print(' omega_set_pixel_x = {:.5f}'.format(omega_set_pixel_x),
+                  ' omega_set_pixel = {:.5f}'.format(omega_set_pixel))
+            print(' sin_omega_set_pixel_x = {:.5f}'.format(np.sin(omega_set_pixel_x)),
+                  ' sin_omega_set_pixel = {:.5f}'.format(sin_omega_set_pixel))
+        # STEP C - Section (v-a)
+            cos_theta_omega_set_pixel_x = - a + b * np.cos(omega_set_pixel_x) + c * np.sin(omega_set_pixel_x)
+            print(' cos_theta_omega_set_pixel_x =  {:.5f}'.format(cos_theta_omega_set_pixel_x),'  ',
+                  ' omega_set_hor =  {:.5f}'.format(omega_set_hor))
+            if cos_theta_omega_set_pixel_x > 0.001:
+                omega_set_pixel_24 = omega_set_hor
+                print(' IF-statement in C_v_a TRUE: omega_set_pixel_24 =  {:.5f}'.format(omega_set_pixel_24))
+        # Would it not be better to use instead of omega_set_hor the value for omega_set_pixel_horizontal, i.e. slope = 0?
+        #     Section C_v_b
+            elif cos_theta_omega_set_pixel_x <= 0.001 and omega_set_pixel_x >= omega_set_hor:
+                omega_set_pixel_24 = omega_set_hor
+                print(' IF-statement in C_v_b TRUE: omega_set_pixel_24 =  {:.5f}'.format(omega_set_pixel_24))
+            # Section C_v_c
+            elif cos_theta_omega_set_pixel_x <= 0.001 and omega_set_pixel_x < omega_set_hor:
+                omega_set_pixel_24 = np.pi - omega_set_pixel
+                print(' IF-statement in C_v_c TRUE: omega_set_pixel_24 =  {:.5f}'.format(omega_set_pixel_24))
+        # STEP C - Section (vi)
+        if omega_set_pixel_24 > omega_set_hor:
+            omega_set_pixel_24 = omega_set_hor
+            print(' IF-statement in C_vi TRUE: omega_set_pixel_24 =  {:.5f}'.format(omega_set_pixel_24))
+        else:
+            print('\n', 'IF-statement in C_vi FALSE: omega_set_pixel_24 =  {:.5f}'.format(omega_set_pixel_24))
+        # STEP C - Section (vii)
+        upper_int_limit_set = omega_set_pixel_24
+        print('\n', 'OUTPUT from STEP C:', '     ', '  upper_int_limit_set/omega_set_pixel_24 = {:.5f}'.format(upper_int_limit_set),
+              '          ','omega_set_hor = {:.5f}'.format(omega_set_hor))
+        print('\n', 'OUTPUT from STEP B:', '     ', '  lower_int_limit_rise/omega_rise_pixel_24 = {:.5f}'.format(lower_int_limit_rise),
+              '        ','omega_rise_hor = {:.5f}'.format(omega_rise_hor))
 
     return omega_set_hor, omega_rise_hor, cos_theta_omega_set_hor, cos_theta_omega_rise_hor, sin_omega_rise_pixel, \
            omega_rise_pixel_24, sin_omega_set_pixel, omega_set_pixel_24, lower_int_limit_rise, upper_int_limit_set,\
            quadratic_function
 
 
-def calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm ):
+def calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm, raster_mode=False):
     """"""
     # This function calculates the cosine and sine for variables that remain constant for a given Landsat image.
     #
@@ -267,10 +545,16 @@ def calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time
     # From Allen 2010 todo - elaborate on comment
     cos_theta_unadj = - a + b * cos_hourangle + c * sin_hourangle
     cos_theta_adj = cos_theta_unadj / cos_slope
-    if cos_theta_adj < 0.1:
-        cos_theta_adj = 0.1
-    if cos_theta_adj > 10.0:
-        cos_theta_adj = 10.0
+
+    if not raster_mode:
+        if cos_theta_adj < 0.1:
+            cos_theta_adj = 0.1
+        if cos_theta_adj > 10.0:
+            cos_theta_adj = 10.0
+    if raster_mode:
+        # reset values in the array in-place
+        cos_theta_adj[cos_theta_adj < 0.1] = 0.1
+        cos_theta_adj[cos_theta_adj > 10.0] = 10.0
 
     # cos_theta_horizontal_pixel at satellite overpass with Eq.[4] in Allen (2006)
     # solar incidence angle at satellite overpass on horizontal pixel is solar_incidence_angle_theta
@@ -290,8 +574,10 @@ def calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time
     # correcting the landsat solar azimuth angle based on hour angle rad less than zero (morning) vs greater than zero (evening)
     if HourAngleRad <= 0.000:
         solar_azimuth_angle_landsat = 180 - solar_azimuth_angle
+    # this line doesn't change if raster or not but i rewrite it for clarity
     solar_azimuth_angle_landsat = 180 + solar_azimuth_angle
 
+    # RETURN all parameters
     return LatRad, DeclRad, DeclDeg, SlopeRad, AspectRad, cos_lat, sin_lat, cos_slope, sin_slope, \
     cos_aspect, sin_aspect, sin_decl, cos_decl, bSc, Sc, HourAngleRad, cos_hourangle, sin_hourangle, a, b, c, cos_theta_unadj, \
     cos_theta_adj, cos_theta_horizontal_pixel, solar_incidence_angle_theta, \
@@ -320,19 +606,36 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
 
     if raster_mode:
         # read in each raster parameter as a numpy array and continue
-        LatDeg = drigo.raster_to_array(LatDeg)
-        SlopeDeg = drigo.raster_to_array(SlopeDeg)
-        AspectDeg = drigo.raster_to_array(AspectDeg)
+        LatDeg = convert_raster_to_array(LatDeg)
+        SlopeDeg = convert_raster_to_array(SlopeDeg)
+        AspectDeg = convert_raster_to_array(AspectDeg)
+        raster_shape = LatDeg.shape
 
+        # flatten every array
+        LatDeg = LatDeg.flatten()
+        SlopeDeg = SlopeDeg.flatten()
+        AspectDeg = AspectDeg.flatten()
 
 
     LatRad, DeclRad, DeclDeg, SlopeRad, AspectRad, cos_lat, sin_lat, cos_slope, sin_slope, cos_aspect, sin_aspect, \
     sin_decl, cos_decl, bSc, Sc, HourAngleRad, cos_hourangle, sin_hourangle, a, b, c, cos_theta_unadj, cos_theta_adj, \
     cos_theta_horizontal_pixel, solar_incidence_angle_theta, solar_elevation_angle, solar_azimuth_angle, \
     solar_azimuth_angle_landsat, solar_time = \
-        calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm)
+        calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm, raster_mode)
 
-    if not raster_mode:
+
+    if raster_mode:
+        solar_topo_raster_vars = [LatRad,  SlopeRad, AspectRad, cos_lat, sin_lat, cos_slope, sin_slope, cos_aspect, sin_aspect, \
+      a, b, c, cos_theta_unadj, cos_theta_adj, \
+    cos_theta_horizontal_pixel, solar_incidence_angle_theta, solar_elevation_angle, solar_azimuth_angle, \
+    solar_azimuth_angle_landsat]
+
+        solar_topo_raster_vars_names = ['LatRad',  'SlopeRad', 'AspectRad', 'cos_lat', 'sin_lat', 'cos_slope', 'sin_slope', 'cos_aspect', 'sin_aspect', \
+    'a', 'b', 'c', 'cos_theta_unadj', 'cos_theta_adj', \
+    'cos_theta_horizontal_pixel', 'solar_incidence_angle_theta', 'solar_elevation_angle', 'solar_azimuth_angle', \
+    'solar_azimuth_angle_landsat']
+
+    else:
         print('\n',
               'Output Function calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm)')
         print('\n', 'DOY = {:.0f}'.format(DOY), '    ', 'LatDeg = {:.2f}'.format(LatDeg), '   ',
@@ -358,33 +661,24 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
               'c = {:.4f}'.format(c))
 
     if raster_mode:
-        print( 'NON RASTER parameters\n')
+        print('NON RASTER parameters\n')
         print('\n',
               'Output Function calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm)')
         print('\n', 'DOY = {:.0f}'.format(DOY),
               '   ', 'local_time = {:.2f}'.format(local_time), '  ', 'solar_time = {:.2f}'.format(solar_time), '  '
-              , 'Lz = {:.0f}'.format(Lz), '  ', 'Lm = {:.0f}'.format(Lm))
+              , 'Lz = {:.0f}'.format(Lz), '  ', 'Lm = {:.0f}\n'.format(Lm))
 
-        print('LAT RAD\n')
-        plt.imshow(LatRad)
-        plt.show()
+        for name, var in zip(solar_topo_raster_vars_names, solar_topo_raster_vars):
+            print('{} is a raster\n'.format(name))
+            var = np.reshape(var, raster_shape)
+            print(var, '\n')
 
-        print('SOLAR ANGLES\n')
-        print('solar incidence angle theta')
-        plt.imshow(solar_incidence_angle_theta)
-        plt.show()
+            # plt.imshow(i)
+            # plt.show()
 
-        print('solar elevation angle')
-        plt.imshow(solar_elevation_angle)
-        plt.show()
-
-        print('solar azimuth angle landsat')
-        plt.imshow(solar_azimuth_angle_landsat)
-        plt.show()
-
-        print('solar azimuth angle')
-        plt.imshow(solar_azimuth_angle)
-        plt.show()
+        print(' \n more non-raster params \n DeclRad -> {}, DeclDeg -> {} sin_decl -> {}, cos_decl -> {}, bSc -> {}  Sc -> {} \n  HourAngleRad {}, '
+              'cos_hourangle {} sin_hourangle {}'.format(DeclRad, DeclDeg, sin_decl, cos_decl, bSc,  Sc,
+                                                         HourAngleRad, cos_hourangle, sin_hourangle))
 
         print('\n',
               'slope azimuth METRIC: 0 degree for slopes oriented due south, ±180 degrees due north, -90 degrees due east,'
@@ -394,59 +688,33 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
 
         print('ALLEN 2010 Slope and cos theta \n')
 
-        print('slope degrees')
-        plt.imshow(SlopeDeg)
-        plt.show()
 
-        print('aspect in degrees')
-        plt.imshow(AspectDeg)
-        plt.show()
+        omega_set_hor, omega_rise_hor, cos_theta_omega_set_hor, cos_theta_omega_rise_hor, sin_omega_rise_pixel, \
+        omega_rise_pixel_24, sin_omega_set_pixel, \
+        omega_set_pixel_24, lower_int_limit_rise, upper_int_limit_set, quadratic_function = calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode=True, raster_shape=raster_shape)
 
-        print(' cosine theta adjusted (ratio)')
-        plt.imshow(cos_theta_adj)
-        plt.show()
+    else:
+        omega_set_hor, omega_rise_hor, cos_theta_omega_set_hor, cos_theta_omega_rise_hor, sin_omega_rise_pixel, \
+        omega_rise_pixel_24, sin_omega_set_pixel, \
+        omega_set_pixel_24, lower_int_limit_rise, upper_int_limit_set, quadratic_function = \
+            calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode=False)
 
-        print('cosine theta unadjusted')
-        plt.imshow(cos_theta_unadj)
-        plt.show()
+    if raster_mode:
+        omega_rise_pixel_24, omega_set_pixel_24, lower_int_limit_rise, upper_int_limit_set, \
+        omega_set_during_day_pixel_24, omega_rise_during_day_pixel_24, X \
+            = calc_two_daytime_integration_limits(omega_rise_pixel_24, omega_set_pixel_24, lower_int_limit_rise,
+                                                  upper_int_limit_set, sin_slope, sin_lat, sin_decl, sin_aspect,
+                                                  cos_slope,
+                                                  cos_lat, cos_decl, cos_aspect, a, b, c, quadratic_function, raster_mode=True)
 
-        print('cosine of slope')
-        plt.imshow(cos_slope)
-        plt.show()
+    else:
+        omega_rise_pixel_24, omega_set_pixel_24, lower_int_limit_rise, upper_int_limit_set, \
+        omega_set_during_day_pixel_24, omega_rise_during_day_pixel_24, X \
+            = calc_two_daytime_integration_limits(omega_rise_pixel_24, omega_set_pixel_24, lower_int_limit_rise,
+                                                  upper_int_limit_set, sin_slope, sin_lat, sin_decl, sin_aspect,
+                                                  cos_slope,
+                                                  cos_lat, cos_decl, cos_aspect, a, b, c, quadratic_function)
 
-        print('coside theta of hirzontal pixel')
-        plt.imshow(cos_theta_horizontal_pixel)
-        plt.show()
-
-        print('DECLINATIONs and HOUR ANGLES')
-
-        print('Degrees of declination')
-        plt.imshow(DeclDeg)
-        plt.show()
-
-        print('Declination in Radians')
-        plt.imshow(DeclRad)
-        plt.show()
-
-        print('hour angle in radians')
-        plt.imshow(HourAngleRad)
-        plt.show()
-
-        print('Sc')
-        plt.imshow(Sc)
-        plt.show()
-
-        print('bSc')
-        plt.imshow(bSc)
-        plt.show()
-
-        print(' PARAMS a, b and c \n')
-        plt.imshow(a)
-        plt.show()
-        plt.imshow(b)
-        plt.show()
-        plt.imshow(c)
-        plt.show()
 
 
 if __name__ == "__main__":

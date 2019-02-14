@@ -232,21 +232,21 @@ def calc_two_integration_limits(LatRad, DeclRad, a, b, c):
         print('\n','IF-statement is FALSE so that a new candidate for omega_rise_pixel needs to be selected')
         print ('\n','STEP B - Section (v)')
         print(' The new candidate is called omega_rise_pixel_x = - np.pi - omega_rise_pixel')
-    # STEP B - Section (v)
+        # STEP B - Section (v)
         omega_rise_pixel_x = - np.pi - omega_rise_pixel
         print(' omega_rise_pixel_x = {:.5f}'.format(omega_rise_pixel_x),
               ' omega_rise_pixel = {:.5f}'.format(omega_rise_pixel))
         print(' sin_omega_rise_pixel_x = {:.5f}'.format(np.sin(omega_rise_pixel_x)),
               ' sin_omega_rise_pixel = {:.5f}'.format(sin_omega_rise_pixel))
-    # STEP B - Section (v-a)
+        # STEP B - Section (v-a)
         cos_theta_omega_rise_pixel_x = - a + b * np.cos(omega_rise_pixel_x) + c * np.sin(omega_rise_pixel_x)
         print(' cos_theta_omega_rise_pixel_x =  {:.5f}'.format(cos_theta_omega_rise_pixel_x),'  ',
               ' omega_rise_hor =  {:.5f}'.format(omega_rise_hor))
         if cos_theta_omega_rise_pixel_x > 0.001:
             omega_rise_pixel_24 = omega_rise_hor
             print(' IF-statement in B_v_a TRUE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
-    # Would it not be better to use instead of omega_rise_hor the value for omega_rise_pixel_horizontal, i.e. slope = 0?
-    # Section B_v_b
+        # Would it not be better to use instead of omega_rise_hor the value for omega_rise_pixel_horizontal, i.e. slope = 0?
+        # Section B_v_b
         elif cos_theta_omega_rise_pixel_x <= 0.001 and omega_rise_pixel_x <= omega_rise_hor:
             omega_rise_pixel_24 = omega_rise_hor
             print(' IF-statement in B_v_b TRUE: omega_rise_pixel_24 =  {:.5f}'.format(omega_rise_pixel_24))
