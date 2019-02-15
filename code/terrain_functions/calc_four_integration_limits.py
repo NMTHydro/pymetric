@@ -797,13 +797,23 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
         print('\n', 'Ra = {:.5f}'.format(Ra))
 
 
-    omega_rise_hor_time_decimal = omega_rise_hor * 180 / np.pi / 15 + 12
-
     if raster_mode:
-        pass
-    else:
+        # for the raster, better now to leave the time decimal as a decimal for conversion later on...
 
+        omega_rise_hor_time_decimal = omega_rise_hor * 180 / np.pi / 15 + 12
+        omega_set_hor_time_decimal = omega_set_hor * 180 / np.pi / 15 + 12
+
+        lower_int_limit_rise_time_decimal = lower_int_limit_rise * 180 / np.pi / 15 + 12
+        upper_int_limit_set_time_decimal = upper_int_limit_set * 180 / np.pi / 15 + 12
+
+        omega_set_during_day_pixel_24_time_decimal = omega_set_during_day_pixel_24 * 180 / np.pi / 15 + 12
+        omega_rise_during_day_pixel_24_time_decimal = omega_rise_during_day_pixel_24 * 180 / np.pi / 15 + 12
+
+    else:
+        omega_rise_hor_time_decimal = omega_rise_hor * 180 / np.pi / 15 + 12
+        print('the decimal', omega_rise_hor_time_decimal)
         ihours = int(omega_rise_hor_time_decimal)
+        # returns omega_rise_hor_time as a tuple of hours and seconds...
         omega_rise_hor_time = ihours, (omega_rise_hor_time_decimal - ihours) * 60
         print('%02d:%02d' % omega_rise_hor_time)
 
@@ -834,9 +844,10 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
 
 
     # Summary of output data for calculation of self-shadowing periods of pixel
-
     if raster_mode:
-        pass
+        omega_set_during_day_pixel_24[X < 0] = 9.0
+        omega_rise_during_day_pixel_24[X < 0] = 9.0
+
     else:
         print('\n', 'Summary of output data for calculation of self-shadowing periods of pixel')
         print('\n', 'Latitude = {:.4f}'.format(LatDeg), 'degrees', '    ', 'DOY = {:.0f}'.format(DOY), '    ',
@@ -867,6 +878,18 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
         print(' omega_set_during_day_pixel_24 = {:.4f}'.format(omega_set_during_day_pixel_24), '             ',
               'omega_rise_during_day_pixel_24  =  {:.4f}'.format(omega_rise_during_day_pixel_24))
 
+    # TODO - Now we output the images as rasters.
+    # These are the images that will be output as rasters for Reasearch and Development of future scripts.
+    # Jan, add more here if I have left any out.
+    vars_to_output = {'omega_rise_time_horizontal': omega_rise_hor_time_decimal,
+                      'omega_set_time_horizonatl': omega_set_hor_time_decimal,
+                      'lower_limit_rise_time': lower_int_limit_rise_time_decimal,
+                      'upper_limit_rise_time': upper_int_limit_set_time_decimal,
+                      'omega_set_daytime': omega_set_during_day_pixel_24_time_decimal,
+                      'omega_rise_daytime': omega_rise_during_day_pixel_24_time_decimal
+                      'int_cos_theta': int_cos_theta,
+
+                      }
 
 if __name__ == "__main__":
 
