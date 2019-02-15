@@ -775,7 +775,7 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
             = calc_two_daytime_integration_limits(omega_rise_pixel_24, omega_set_pixel_24, lower_int_limit_rise,
                                                   upper_int_limit_set, sin_slope, sin_lat, sin_decl, sin_aspect,
                                                   cos_slope,
-                                                  cos_lat, cos_decl, cos_aspect, a, b, c, quadratic_function, raster_mode=True)
+                                                  cos_lat, cos_decl, cos_aspect, a, b, c, quadratic_function, raster_mode)
 
     else:
         omega_rise_pixel_24, omega_set_pixel_24, lower_int_limit_rise, upper_int_limit_set, \
@@ -811,6 +811,9 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
 
         lower_int_limit_rise_time_decimal = lower_int_limit_rise * 180 / np.pi / 15 + 12
         upper_int_limit_set_time_decimal = upper_int_limit_set * 180 / np.pi / 15 + 12
+
+        omega_rise_pixel_24_decimal = omega_rise_pixel_24 * 180 / np.pi / 15 + 12
+        omega_set_pixel_24_decimal = omega_set_pixel_24 * 180 / np.pi / 15 + 12
 
         omega_set_during_day_pixel_24_time_decimal = omega_set_during_day_pixel_24 * 180 / np.pi / 15 + 12
         omega_rise_during_day_pixel_24_time_decimal = omega_rise_during_day_pixel_24 * 180 / np.pi / 15 + 12
@@ -895,6 +898,8 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
                           'upper_limit_rise_time': upper_int_limit_set_time_decimal,
                           'omega_set_daytime': omega_set_during_day_pixel_24_time_decimal,
                           'omega_rise_daytime': omega_rise_during_day_pixel_24_time_decimal,
+                          'omega_rise': omega_rise_pixel_24_decimal,
+                          'omega_set': omega_set_pixel_24_decimal,
                           'int_cos_theta': int_cos_theta,
                           }
 
