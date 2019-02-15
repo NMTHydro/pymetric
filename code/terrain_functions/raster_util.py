@@ -64,7 +64,7 @@ def convert_array_to_raster(output_path, arr, geo, output_band=1):
         return
 
 # todo - modify this to take an individual path
-def get_raster_geo_attributes(root):
+def get_raster_geo_attributes(file):
     """
     Creates a dict of geographic attributes from any of the pre-processed standardized rasters.
 
@@ -73,8 +73,8 @@ def get_raster_geo_attributes(root):
     """
     # statics = [filename for filename in os.listdir(statics_path) if filename.endswith('.tif')]
     # file_name = statics[0]
-    file_name = next((fn for fn in sorted(os.listdir(root)) if fn.endswith('.tif')), None)
-    dataset = gdal.Open(os.path.join(root, file_name))
+    print('opening file', file)
+    dataset = gdal.Open(file)
 
     band = dataset.GetRasterBand(1)
     raster_geo_dict = {'cols': dataset.RasterXSize, 'rows': dataset.RasterYSize, 'bands': dataset.RasterCount,

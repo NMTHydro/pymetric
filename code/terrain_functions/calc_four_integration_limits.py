@@ -17,7 +17,7 @@ import os
 import numpy as np
 from matplotlib import pyplot as plt
 # ============= standard library imports ========================
-from code.terrain_functions.raster_util import convert_raster_to_array
+from code.terrain_functions.raster_util import convert_raster_to_array, get_raster_geo_attributes, convert_array_to_raster
 
 # TODO - MAKE SURE THAT YOU USE PYMETRIC-WRITTEN FUNCTIONS TO READ THE RASTERS AS ARRAYS DONT REPEAT FUNCTIONS ALREADY WRITTEN BY DRI
 
@@ -644,7 +644,7 @@ def calc_solar_topo_image_variables(DOY, LatDeg, SlopeDeg, AspectDeg, local_time
            solar_elevation_angle, solar_azimuth_angle, solar_azimuth_angle_landsat, solar_time
 
 
-def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm, raster_mode=False):
+def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm, output_dir=None, raster_mode=False):
     """"""
     # Derived variables
     #
@@ -665,10 +665,16 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
     # Projects with a focus on steep slopes may want to change this threshold value.
 
     if raster_mode:
+        # get the geo attributes of a representative file:
+        geo = get_raster_geo_attributes(LatDeg)
+        print('geo', geo)
+
         # read in each raster parameter as a numpy array and continue
         LatDeg = convert_raster_to_array(LatDeg)
         SlopeDeg = convert_raster_to_array(SlopeDeg)
         AspectDeg = convert_raster_to_array(AspectDeg)
+
+        # GET the shape of the raster
         raster_shape = LatDeg.shape
 
         # flatten every array
@@ -878,18 +884,27 @@ def calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, L
         print(' omega_set_during_day_pixel_24 = {:.4f}'.format(omega_set_during_day_pixel_24), '             ',
               'omega_rise_during_day_pixel_24  =  {:.4f}'.format(omega_rise_during_day_pixel_24))
 
-    # TODO - Now we output the images as rasters.
-    # These are the images that will be output as rasters for Reasearch and Development of future scripts.
-    # Jan, add more here if I have left any out.
-    vars_to_output = {'omega_rise_time_horizontal': omega_rise_hor_time_decimal,
-                      'omega_set_time_horizonatl': omega_set_hor_time_decimal,
-                      'lower_limit_rise_time': lower_int_limit_rise_time_decimal,
-                      'upper_limit_rise_time': upper_int_limit_set_time_decimal,
-                      'omega_set_daytime': omega_set_during_day_pixel_24_time_decimal,
-                      'omega_rise_daytime': omega_rise_during_day_pixel_24_time_decimal
-                      'int_cos_theta': int_cos_theta,
+    # =========== 2D RASTER OUTPUT =================
+    if raster_mode:
+        # Now we output the images as rasters.
+        # These are the images that will be output as rasters for Reasearch and Development of future scripts.
+        # Jan, add more here if I have left any out.
+        vars_to_output = {'omega_rise_time_horizontal': omega_rise_hor_time_decimal,
+                          'omega_set_time_horizonatl': omega_set_hor_time_decimal,
+                          'lower_limit_rise_time': lower_int_limit_rise_time_decimal,
+                          'upper_limit_rise_time': upper_int_limit_set_time_decimal,
+                          'omega_set_daytime': omega_set_during_day_pixel_24_time_decimal,
+                          'omega_rise_daytime': omega_rise_during_day_pixel_24_time_decimal,
+                          'int_cos_theta': int_cos_theta,
+                          }
 
-                      }
+        for k, v in vars_to_output.items():
+            filename = '{}.tif'.format(k)
+            outpath = os.path.join(output_dir, filename)
+            arr = np.reshape(v, raster_shape)
+            convert_array_to_raster(outpath, arr, geo)
+
+
 
 if __name__ == "__main__":
 
@@ -930,11 +945,14 @@ if __name__ == "__main__":
     # RASTER EQUIVALENT TO LatDeg
     latitude_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_lat.tif'
 
+    # OUTPUT
+    output_dir = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/script_test_output'
+
     # We make it optional to run a raster mode or a 1-D mode.
     raster_mode = True
 
     if raster_mode:
         # # The way the function would be called to run the function in raster mode
-        calculate_integration_limits(DOY, latitude_path, slope_path, aspect_path, local_time, Lz, Lm, raster_mode)
+        calculate_integration_limits(DOY, latitude_path, slope_path, aspect_path, local_time, Lz, Lm, output_dir, raster_mode)
     else:
         calculate_integration_limits(DOY, LatDeg, SlopeDeg, AspectDeg, local_time, Lz, Lm, raster_mode)
