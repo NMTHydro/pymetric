@@ -943,7 +943,24 @@ if __name__ == "__main__":
     SlopeDeg = 80
     AspectDeg = 180
 
-    # =============== RASTER MODE INPUTS (MSEC COMP) =======================
+    # =============== RASTER MODE INPUTS (MSEC COMP) Gabe =======================
+
+    # We may not need the DEM.
+    dem_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped.tif'
+    # RASTER EQUIVALENT TO SlopeDeg
+    slope_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_slope.tif'
+    # RASTER EQUIVALENT TO AspectDeg
+    aspect_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_aspect.tif'
+    # RASTER EQUIVALENT TO LatDeg
+    latitude_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped_lat.tif'
+
+    # OUTPUT
+    output_dir = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/script_test_output'
+
+    # We make it optional to run a raster mode or a 1-D mode.
+    raster_mode = True
+
+    # =============== RASTER MODE INPUTS (MSEC COMP) Jan =======================
 
     # We may not need the DEM.
     dem_path = '/Users/dcadol/Desktop/academic_docs_II/m_mountain_metric/Los_Lunas_AOI/dem_clipped/los_lunas_aoi_dem_clipped.tif'
