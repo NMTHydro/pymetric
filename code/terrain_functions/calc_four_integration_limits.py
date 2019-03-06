@@ -284,6 +284,8 @@ def calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode=False, ras
 
     quadratic_function = b**2 + c**2 - a**2
 
+    # This is a Jan Hendickx edit.hghgf
+
     if raster_mode:
         print('\n', 'STEP D - Section (i)', '\n', 'Before check on positive value', '      ',
               'quadratic_function = \n {}'.format(quadratic_function))
