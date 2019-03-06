@@ -286,6 +286,8 @@ def calc_two_integration_limits(LatRad, DeclRad, a, b, c, raster_mode=False, ras
 
     # This is a Jan Hendickx edit.hghgf
 
+    # now ive made another change
+
     if raster_mode:
         print('\n', 'STEP D - Section (i)', '\n', 'Before check on positive value', '      ',
               'quadratic_function = \n {}'.format(quadratic_function))
